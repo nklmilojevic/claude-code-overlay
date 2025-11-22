@@ -34,6 +34,14 @@
         mv $out/bin/.claude-wrapped $out/bin/claude
       '';
 
+      doInstallCheck = true;
+      nativeInstallCheckInputs = with pkgs; [
+        writableTmpDirAsHomeHook
+        versionCheckHook
+      ];
+      versionCheckKeepEnvironment = ["HOME"];
+      versionCheckProgramArg = "--version";
+
       passthru = {
         updateScript = ./update.sh;
       };
