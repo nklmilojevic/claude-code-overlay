@@ -16,13 +16,22 @@
 
       pname = "claude";
       src = pkgs.fetchurl {inherit url sha256;};
+      nativeBuildInputs = [pkgs.makeWrapper];
       dontUnpack = true;
       dontConfigure = true;
       dontBuild = true;
-      dontFixup = true;
       installPhase = ''
         mkdir -p $out/bin
-        install -m755 $src $out/bin/claude
+        install -m755 $src $out/bin/.claude-wrapped
+      '';
+      # Wrap the binary with environment variables to disable telemetry and auto-updates
+      postFixup = ''
+        wrapProgram $out/bin/.claude-wrapped \
+          --set DISABLE_AUTOUPDATER 1 \
+          --set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 1 \
+          --set DISABLE_NON_ESSENTIAL_MODEL_CALLS 1 \
+          --set DISABLE_TELEMETRY 1
+        mv $out/bin/.claude-wrapped $out/bin/claude
       '';
 
       meta = with lib; {
