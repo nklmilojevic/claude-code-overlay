@@ -1,0 +1,56 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+  ],
+  "schedule": [
+    "every 1 hour",
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 3am on Monday",
+    ],
+  },
+  "nix": {
+    "enabled": true,
+  },
+  "flake": {
+    "enabled": true,
+  },
+  // GitHub Actions updates
+  "github-actions": {
+    "enabled": true,
+  },
+  // Custom rules for flake inputs
+  "regexManagers": [
+    {
+      "fileMatch": ["^flake\\.nix$"],
+      "matchStrings": [
+        '\\s+url = "github:(?<depName>[^/]+/[^/]+)/(?<currentValue>[^"]+)"',
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+    },
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["nixos/nixpkgs"],
+      "schedule": [
+        "every weekend",
+      ],
+    },
+    // Auto-merge minor and patch updates
+    {
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+    },
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 10,
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
+  "labels": ["dependencies"],
+}
