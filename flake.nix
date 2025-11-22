@@ -5,6 +5,12 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
+    # Pre-commit hooks
+    pre-commit-hooks = {
+      url = "github:cachix/pre-commit-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Used for shell.nix
     flake-compat = {
       url = "github:edolstra/flake-compat";
@@ -16,12 +22,24 @@
     self,
     nixpkgs,
     flake-utils,
+    pre-commit-hooks,
     ...
   }: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
     outputs = flake-utils.lib.eachSystem systems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in rec {
+      # Pre-commit hooks configuration
+      checks = {
+        pre-commit-check = pre-commit-hooks.lib.${system}.run {
+          src = ./.;
+          hooks = {
+            alejandra.enable = true;
+            deadnix.enable = true;
+            statix.enable = true;
+          };
+        };
+      };
       # The packages exported by the Flake:
       #  - default - latest /released/ version
       #  - <version> - tagged version
@@ -38,6 +56,7 @@
       formatter = pkgs.alejandra;
 
       devShells.default = pkgs.mkShell {
+        inherit (self.checks.${system}.pre-commit-check) shellHook;
         nativeBuildInputs = with pkgs; [
           curl
           jq
@@ -52,7 +71,7 @@
     // {
       # Overlay that can be imported so you can access the packages
       # using claudepkgs.default or whatever you'd like.
-      overlays.default = final: prev: {
+      overlays.default = _final: prev: {
         claudepkgs = outputs.packages.${prev.system};
       };
     };
