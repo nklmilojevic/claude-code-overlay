@@ -34,6 +34,10 @@
         mv $out/bin/.claude-wrapped $out/bin/claude
       '';
 
+      passthru = {
+        updateScript = ./update.sh;
+      };
+
       meta = with lib; {
         description = "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster";
         homepage = "https://claude.ai/code";
