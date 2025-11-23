@@ -29,9 +29,13 @@ jobs:
         run: nix build -L
       - name: Verify binary version matches sources.json
         run: |
-          # Extract expected version from sources.json
-          EXPECTED_VERSION=$(jq -r '.["2.0.50"].actualBinaryVersion' sources.json)
-          echo "Expected version from sources.json: $EXPECTED_VERSION"
+          # Determine the latest version key
+          LATEST_VERSION=$(jq -r 'keys | sort | last' sources.json)
+          echo "Latest version: $LATEST_VERSION"
+
+          # Extract expected version from sources.json for x86_64-linux
+          EXPECTED_VERSION=$(jq -r --arg ver "$LATEST_VERSION" '.[$ver]["x86_64-linux"].actualBinaryVersion' sources.json)
+          echo "Expected version from sources.json (x86_64-linux): $EXPECTED_VERSION"
 
           # Get actual version from built binary
           ACTUAL_VERSION=$(./result/bin/claude --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)

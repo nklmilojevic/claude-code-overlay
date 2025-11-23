@@ -94,7 +94,7 @@
     (_: releaseData:
       mkBinaryInstall {
         inherit (releaseData.${system}) version url sha256;
-        actualBinaryVersion = releaseData.actualBinaryVersion or "1.3.2";
+        actualBinaryVersion = releaseData.${system}.actualBinaryVersion or "1.3.2";
       })
     (lib.attrsets.filterAttrs
       (_: v: (builtins.hasAttr system v) && (v.${system}.url != null) && (v.${system}.sha256 != null))
