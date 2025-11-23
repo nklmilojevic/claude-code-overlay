@@ -20,6 +20,15 @@ SHA256_LINUX_ARM64=$(echo "$MANIFEST" | jq -r '.platforms["linux-arm64"].checksu
 SHA256_DARWIN_X64=$(echo "$MANIFEST" | jq -r '.platforms["darwin-x64"].checksum')
 SHA256_DARWIN_ARM64=$(echo "$MANIFEST" | jq -r '.platforms["darwin-arm64"].checksum')
 
+# Detect actual binary version by downloading and checking one binary
+echo "Detecting actual binary version..."
+TEMP_BIN=$(mktemp)
+trap "rm -f $TEMP_BIN" EXIT
+curl -s "${BASE_URL}/${VERSION}/darwin-arm64/claude" -o "$TEMP_BIN"
+chmod +x "$TEMP_BIN"
+ACTUAL_VERSION=$("$TEMP_BIN" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+echo "Actual binary version: $ACTUAL_VERSION"
+
 echo "Linux x64 SHA256: $SHA256_LINUX_X64"
 echo "Linux arm64 SHA256: $SHA256_LINUX_ARM64"
 echo "Darwin x64 SHA256: $SHA256_DARWIN_X64"
@@ -34,6 +43,7 @@ URL_DARWIN_ARM64="${BASE_URL}/${VERSION}/darwin-arm64/claude"
 # Create new sources.json entry
 NEW_ENTRY=$(jq -n \
   --arg version "$VERSION" \
+  --arg actual_version "$ACTUAL_VERSION" \
   --arg url_linux_x64 "$URL_LINUX_X64" \
   --arg sha256_linux_x64 "$SHA256_LINUX_X64" \
   --arg url_linux_arm64 "$URL_LINUX_ARM64" \
@@ -44,6 +54,7 @@ NEW_ENTRY=$(jq -n \
   --arg sha256_darwin_arm64 "$SHA256_DARWIN_ARM64" \
   '{
     ($version): {
+      "actualBinaryVersion": $actual_version,
       "x86_64-linux": {
         "url": $url_linux_x64,
         "version": $version,
