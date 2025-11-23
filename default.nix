@@ -10,6 +10,7 @@
     url,
     version,
     sha256,
+    actualBinaryVersion ? "1.3.2", # Default to 1.3.2 for backward compatibility
   }:
     pkgs.stdenv.mkDerivation {
       inherit version;
@@ -40,13 +41,36 @@
         mv $out/bin/.claude-wrapped $out/bin/claude
       '';
 
+      # Custom version check: The distributed binary may differ from the manifest version.
+      # Since /nix/store is read-only, self-updates cannot occur, so we verify the binary
+      # reports the expected actualBinaryVersion from sources.json.
       doInstallCheck = true;
-      nativeInstallCheckInputs = with pkgs; [
-        writableTmpDirAsHomeHook
-        versionCheckHook
-      ];
-      versionCheckKeepEnvironment = ["HOME"];
-      versionCheckProgramArg = "--version";
+      nativeInstallCheckInputs = [pkgs.writableTmpDirAsHomeHook];
+      installCheckPhase = ''
+        runHook preInstallCheck
+
+        # Check that the binary runs and reports the expected version
+        version_output=$($out/bin/claude --version 2>&1 || true)
+        detected_version=$(echo "$version_output" | ${pkgs.gnugrep}/bin/grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+
+        if [ -z "$detected_version" ]; then
+          echo "Error: Could not determine claude version from output:"
+          echo "$version_output"
+          exit 1
+        fi
+
+        expected_version="${actualBinaryVersion}"
+        if [ "$detected_version" != "$expected_version" ]; then
+          echo "Error: Binary version mismatch!"
+          echo "  Expected: $expected_version"
+          echo "  Detected: $detected_version"
+          echo "  Manifest version: ${version}"
+          exit 1
+        fi
+
+        echo "Version check passed: claude reports version $detected_version (manifest: ${version})"
+        runHook postInstallCheck
+      '';
 
       passthru = {
         updateScript = ./update;
@@ -67,7 +91,11 @@
   # The packages that are tagged releases
   taggedPackages =
     lib.attrsets.mapAttrs
-    (_: v: mkBinaryInstall {inherit (v.${system}) version url sha256;})
+    (_: releaseData:
+      mkBinaryInstall {
+        inherit (releaseData.${system}) version url sha256;
+        actualBinaryVersion = releaseData.actualBinaryVersion or "1.3.2";
+      })
     (lib.attrsets.filterAttrs
       (_: v: (builtins.hasAttr system v) && (v.${system}.url != null) && (v.${system}.sha256 != null))
       sources);
