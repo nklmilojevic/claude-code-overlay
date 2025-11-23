@@ -27,35 +27,24 @@
       dontUnpack = true;
       dontConfigure = true;
       dontBuild = true;
+
       installPhase = ''
-        mkdir -p $out/bin
-        install -m755 $src $out/bin/.claude-wrapped
-      '';
-      # Wrap the binary with environment variables to disable telemetry and auto-updates
-      postFixup = ''
-        wrapProgram $out/bin/.claude-wrapped \
-          --set DISABLE_AUTOUPDATER 1 \
-          --set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 1 \
-          --set DISABLE_NON_ESSENTIAL_MODEL_CALLS 1 \
-          --set DISABLE_TELEMETRY 1
-        mv $out/bin/.claude-wrapped $out/bin/claude
-      '';
+        runHook preInstall
 
-      # Custom version check: The distributed binary may differ from the manifest version.
-      # Since /nix/store is read-only, self-updates cannot occur, so we verify the binary
-      # reports the expected actualBinaryVersion from sources.json.
-      doInstallCheck = true;
-      nativeInstallCheckInputs = [pkgs.writableTmpDirAsHomeHook];
-      installCheckPhase = ''
-        runHook preInstallCheck
+        echo "Verifying binary version before installation..."
 
-        # Check that the binary runs and reports the expected version
-        version_output=$($out/bin/claude --version 2>&1 || true)
+        # Copy binary to temporary location and check version
+        tmp_binary=$(mktemp)
+        cp $src $tmp_binary
+        chmod +x $tmp_binary
+
+        version_output=$($tmp_binary --version 2>&1 || true)
         detected_version=$(echo "$version_output" | ${pkgs.gnugrep}/bin/grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+        rm -f $tmp_binary
 
         if [ -z "$detected_version" ]; then
-          echo "Error: Could not determine claude version from output:"
-          echo "$version_output"
+          echo "Error: Could not determine claude version from binary"
+          echo "Output: $version_output"
           exit 1
         fi
 
@@ -68,8 +57,22 @@
           exit 1
         fi
 
-        echo "Version check passed: claude reports version $detected_version (manifest: ${version})"
-        runHook postInstallCheck
+        echo "✓ Version check passed: binary reports $detected_version (manifest: ${version})"
+
+        mkdir -p $out/bin
+        install -m755 $src $out/bin/.claude-wrapped
+
+        runHook postInstall
+      '';
+
+      # Wrap the binary with environment variables to disable telemetry and auto-updates
+      postFixup = ''
+        wrapProgram $out/bin/.claude-wrapped \
+          --set DISABLE_AUTOUPDATER 1 \
+          --set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC 1 \
+          --set DISABLE_NON_ESSENTIAL_MODEL_CALLS 1 \
+          --set DISABLE_TELEMETRY 1
+        mv $out/bin/.claude-wrapped $out/bin/claude
       '';
 
       passthru = {
