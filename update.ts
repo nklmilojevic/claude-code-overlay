@@ -14,24 +14,21 @@
  */
 
 import { $ } from "bun";
-import * as v from "valibot@1.1.0";
 import { join } from "node:path";
 
 const BASE_URL = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
 
-// Define schemas
-const ManifestPlatformSchema = v.object({
-	checksum: v.string(),
-	size: v.number(),
-});
+// Type definitions
+interface ManifestPlatform {
+	checksum: string;
+	size: number;
+}
 
-const ManifestSchema = v.object({
-	version: v.string(),
-	buildDate: v.string(),
-	platforms: v.record(v.string(), ManifestPlatformSchema),
-});
-
-type Manifest = v.InferOutput<typeof ManifestSchema>;
+interface Manifest {
+	version: string;
+	buildDate: string;
+	platforms: Record<string, ManifestPlatform>;
+}
 
 // Platform mappings (Nix platform -> manifest platform)
 const platforms = {
@@ -60,7 +57,7 @@ async function fetchManifest(version: string): Promise<Manifest> {
 	const url = `${BASE_URL}/${version}/manifest.json`;
 	const response = await fetch(url);
 	const json = await response.json();
-	return v.parse(ManifestSchema, json);
+	return json as Manifest;
 }
 
 /**
@@ -71,40 +68,43 @@ async function sha256ToSri(sha256Hex: string): Promise<string> {
 	return result.trim();
 }
 
-/**
- * Get the current version from default.nix.
- */
-async function getCurrentVersion(): Promise<string | null> {
-	const defaultNixPath = join(import.meta.dir, "default.nix");
-	const content = await Bun.file(defaultNixPath).text();
-
-	const match = content.match(/version = "([^"]+)";/);
-	return match?.[1] ?? null;
+// Type definition for sources.json
+interface SourcesJSON {
+	version: string;
+	platforms: Record<NixPlatform, { url: string; hash: string }>;
 }
 
 /**
- * Update default.nix with new version and hashes using regex.
+ * Get the current version from sources.json.
  */
-async function updateDefaultNix(version: string, hashes: Record<NixPlatform, string>): Promise<void> {
-	const defaultNixPath = join(import.meta.dir, "default.nix");
-	let content = await Bun.file(defaultNixPath).text();
+async function getCurrentVersion(): Promise<string | null> {
+	const sourcesPath = join(import.meta.dir, "sources.json");
+	const sources: SourcesJSON = await Bun.file(sourcesPath).json();
+	return sources.version;
+}
 
-	// Update version
-	content = content.replace(
-		/version = "[^"]+";/,
-		`version = "${version}";`,
-	);
+/**
+ * Update sources.json with new version and hashes.
+ */
+async function updateSourcesJSON(version: string, hashes: Record<NixPlatform, string>): Promise<void> {
+	const sourcesPath = join(import.meta.dir, "sources.json");
 
-	// Update each platform hash
-	for (const [platform, hashValue] of Object.entries(hashes)) {
-		const pattern = new RegExp(
-			`(${platform} = \\{[^}]*?hash = ")[^"]+(")`,
-			"s",
-		);
-		content = content.replace(pattern, `$1${hashValue}$2`);
+	const platformsData: Record<NixPlatform, { url: string; hash: string }> = {} as any;
+
+	for (const [nixPlatform, manifestPlatform] of Object.entries(platforms)) {
+		const url = `${BASE_URL}/${version}/${manifestPlatform}/claude`;
+		platformsData[nixPlatform as NixPlatform] = {
+			url,
+			hash: hashes[nixPlatform as NixPlatform],
+		};
 	}
 
-	await Bun.write(defaultNixPath, content);
+	const sourcesData: SourcesJSON = {
+		version,
+		platforms: platformsData,
+	};
+
+	await Bun.write(sourcesPath, JSON.stringify(sourcesData, null, 2) + "\n");
 }
 
 // Main execution
@@ -130,6 +130,6 @@ for (const [nixPlatform, manifestPlatform] of Object.entries(platforms)) {
 
 console.log();
 
-// Update default.nix
-await updateDefaultNix(latestVersion, hashes);
+// Update sources.json
+await updateSourcesJSON(latestVersion, hashes);
 console.log(`Updated claude to version ${latestVersion}`);

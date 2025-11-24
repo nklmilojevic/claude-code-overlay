@@ -8,26 +8,9 @@
   writableTmpDirAsHomeHook,
   versionCheckHook,
 }: let
-  version = "2.0.50";
-
-  sources = {
-    x86_64-linux = {
-      url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${version}/linux-x64/claude";
-      hash = "sha256-LDOZ6KIuYHxhrgB7P/4RYzZIzaGV55BWjsdfGc9VCDM=";
-    };
-    aarch64-linux = {
-      url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${version}/linux-arm64/claude";
-      hash = "sha256-FIjZwijAyX9lHG/LNwU8Xf+obzH3eyMtR+Yb/32lYi4=";
-    };
-    x86_64-darwin = {
-      url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${version}/darwin-x64/claude";
-      hash = "sha256-PsWeIJ5F+G8PY+CHNhQsIg6Gxeed/6IcqDkuGHy/a84=";
-    };
-    aarch64-darwin = {
-      url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${version}/darwin-arm64/claude";
-      hash = "sha256-qNBvLdsvCYF+yjl8Ee/dlg5+JWONF8WXYPHP03HQRDA=";
-    };
-  };
+  sourcesData = lib.importJSON ./sources.json;
+  inherit (sourcesData) version;
+  sources = sourcesData.platforms;
 
   source =
     sources.${stdenv.hostPlatform.system}
