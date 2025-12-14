@@ -189,7 +189,45 @@ Other default options are inherited from [the official options](https://github.c
 
 #### Add to devShell
 
-Use Claude Code in a project-specific development environment:
+Use Claude Code in a project-specific development environment.
+
+**Method 1: Direct package reference (Recommended)**
+
+The simplest approach - no `allowUnfree` configuration required:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    claude-code-overlay.url = "github:ryoppippi/claude-code-overlay";
+  };
+
+  outputs = { nixpkgs, claude-code-overlay, ... }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+    in
+    {
+      devShells = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [
+              claude-code-overlay.packages.${system}.default
+              # Add other development tools here
+            ];
+          };
+        }
+      );
+    };
+}
+```
+
+**Method 2: Using overlay**
+
+Use this if you want to reference the package as `pkgs.claude-code`:
 
 ```nix
 {
