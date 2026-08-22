@@ -10,7 +10,7 @@ in {
   options.programs.claude-code = {
     enableLocalBinSymlink = lib.mkOption {
       type = lib.types.bool;
-      default = pkgs.stdenv.isLinux;
+      default = pkgs.stdenv.hostPlatform.isLinux;
       description = ''
         Whether to create a symlink at ~/.local/bin/claude.
         Enabled by default on Linux to avoid "claude command not found" warnings.
